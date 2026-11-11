@@ -516,3 +516,113 @@ Los 28 casos de caja negra cubren 14 de los 15 caminos. Ninguno usa `flag=True`,
 Conjunto de ramas: **CP01, CP02, CP03, CP10, CP12, CP13, CP15, CP16, CP22 y CP29** (10 casos). La cobertura de ramas incluye a la de sentencias.
 
 **Con los 29 casos se logra 100 % de sentencias y de ramas sobre el código heredado, y aun así hay defectos.** La cobertura mide qué líneas se ejecutan, no si el resultado es correcto.
+
+# Parte 5 · Automatización, ejecución y defectos
+
+## 5.1 Automatización de los casos con pytest
+
+![](images/clipboard-2656515691.png)
+
+Los 28 casos de la Parte 3 y el CP29 de la Parte 4 se automatizaron en `EnviaYa/tests/test_envios.py`. Se ejecutaron contra el código heredado `v1.0.0`, sin modificarlo.
+
+Comando: `python -m pytest -v`
+
+**(Captura de pytest: pruebas )**
+
+![](images/clipboard-3999509531.png)
+
+![](images/clipboard-1207369166.png)
+
+![](images/clipboard-2230355213.png)
+
+![](images/clipboard-3177462672.png)
+
+![](images/clipboard-1346668204.png)
+
+![](images/clipboard-3558285916.png)
+
+![](images/clipboard-918130772.png)
+
+![](images/clipboard-1468991319.png)
+
+![](images/clipboard-3797341017.png)
+
+![](images/clipboard-3300134988.png)
+
+![](images/clipboard-536172767.png)
+
+![](images/clipboard-1801894770.png)
+
+![](images/clipboard-3743880521.png)
+
+![](images/clipboard-3177533437.png)
+
+![](images/clipboard-3268747781.png)
+
+Resultado: 15 pasan, 16 fallan, de 31 pruebas.
+
+## 5.2 Cobertura
+
+Comando: `python -m pytest --cov=envios --cov-branch --cov-report=term-missing`
+
+(Captura de la cobertura)
+
+Cobertura de sentencias: 100 % (29 de 29). Cobertura de ramas: 100 % (26 de 26).
+
+## 5.3 Registro de defectos
+
+| ID | Título | Req. | Pasos para reproducir | Esperado | Obtenido | Severidad | Prioridad |
+|---------|---------|---------|---------|---------|---------|---------|---------|
+| DEF-01 | No valida la zona | R2 | `calc(5, "aerea", "normal", 3)` | Error | 9000 | Media | Media |
+| DEF-02 | No valida el día entre 1 y 7 | R2 | `calc(5, "urbana", "normal", 8)` | Error | 11000 | Media | Media |
+| DEF-03 | El sábado no cobra recargo (`d > 6`) | R5 | `calc(5, "urbana", "normal", 6)` | 11000 | 9000 | Alta | Alta |
+| DEF-04 | Recargo de fin de semana antes de los descuentos | R5 | `calc(5, "urbana", "frecuente", 7)` | 10600 | 10400 | Alta | Alta |
+| DEF-05 | Trunca en vez de redondear | R8 | `calc(5, "rural", "normal", 3)` | 11300 | 11200 | Alta | Alta |
+
+**Justificación:** - **DEF-03, 04 y 05:** cobran mal a clientes reales (severidad alta) y afectan muchos envíos, así que se corrigen primero. - **DEF-01 y 02:** aceptan datos inválidos y devuelven un precio sin avisar, pero no son comunes con datos bien capturados (severidad media).
+
+## 5.4 Métricas 
+
+| Métrica | Fórmula | Valor |
+|----|----|----|
+| \% de casos que pasan | pasan / total × 100 | 15 / 31 × 100 = **48,4 %** |
+| Defectos por severidad | Alta: 3, Media: 2, Baja: 0 | 5 en total |
+| Densidad de defectos | defectos / líneas × 100 | 5 / 40 × 100 = **12,5 por cada 100 líneas** (ver nota) |
+| Cobertura de sentencias | de pytest-cov | **100 %** (29 de 29) |
+| Cobertura de ramas | de pytest-cov | **100 %** (26 de 26) |
+
+|     |
+|-----|
+|     |
+
+## Resultados contra el heredado: 16 fallan, 15 pasan (31 pruebas)
+
+Los fallos son los esperados y coinciden con los 5 defectos. Cobertura: **100 % de sentencias (29/29) y 100 % de ramas (26/26)**.
+
+### Corrección importante a mi tabla de defectos
+
+Con lo que salió, mi tabla de “Obtenido” tenía **dos valores mal**. Usa estos, que son los reales de tu ejecución:
+
+| ID | Título | Req. | Pasos para reproducir | Esperado | Obtenido | Severidad | Prioridad |
+|----|----|----|----|----|----|----|----|
+| DEF-01 | No valida la zona | R2 | `calc(5, "aerea", "normal", 3)` | Error | 9000 (sin error) | Media | Media |
+| DEF-02 | No valida el día (1 a 7) | R2 | `calc(5, "urbana", "normal", 8)` | Error | 9000 (sin error) | Media | Media |
+| DEF-03 | El sábado no cobra recargo (`d > 6`) | R5 | `calc(5, "urbana", "normal", 6)` | 11000 | 9000 | Alta | Alta |
+| DEF-04 | Recargo de fin de semana antes de los descuentos | R5 | `calc(5, "urbana", "normal", 7, "ENVIO10")` | 10100 | 9900 | Alta | Alta |
+| DEF-05 | Trunca en vez de redondear | R8 | `calc(5, "rural", "normal", 3)` | 11300 | 11200 | Alta | Alta |
+
+Mis errores anteriores: DEF-02 dije 11000 (es 9000, porque el día 8 no suma recargo) y DEF-04 usé un caso (frecuente, día 7) que mezcla DEF-04 con DEF-05. El de arriba aísla DEF-04: sin redondeo de por medio, 9.000 × 0,90 = 8.100 y luego +2.000 = 10.100, mientras el heredado suma antes: 11.000 × 0,90 = 9.900.
+
+### Métricas (Parte 5.4)
+
+| Métrica | Valor |
+|----|----|
+| Pruebas ejecutadas | 31 (28 casos + CP29 + 2 ejemplos; los parametrizados cuentan por separado) |
+| Pasan / fallan | 15 / 16 |
+| \% que pasan | 15/31 = **48,4 %** |
+| Defectos por severidad | Alta: 3, Media: 2, Baja: 0 (total 5) |
+| Densidad de defectos | 5 / 40 líneas × 100 = **12,5 por cada 100 líneas** (usa 40 si `envios.py` tiene 40 líneas; compruébalo con `(Get-Content EnviaYa\envios.py).Count`) |
+| Cobertura de sentencias | **100 %** (29 de 29) |
+| Cobertura de ramas | **100 %** (26 de 26) |
+
+Nota para el informe: coverage.py cuenta `p <= 0 or p > 50` como una sola decisión, por eso mide 26 ramas y no las 28 aristas de mi grafo. Y la lección: **100 % de cobertura y aun así 16 fallos**; la cobertura mide qué se ejecuta, no si el resultado es correcto.
