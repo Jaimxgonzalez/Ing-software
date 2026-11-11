@@ -32,7 +32,7 @@ Para determinar mis parámetros, tomo los últimos seis dígitos de mi código e
 **A = 4, B = 1, C = 0, D = 0, E = 7, F = 0.**
 
 | **A** | **B** | **C** | **D** | **E** | **F** | **PMAX** | **L1** | **L2** | **RR** | **RN** | **V** | **S** | **CAMBIO** |
-|----|----|----|------|----|----|------|------|------|------|------|------|------|------|
+|----|----|----|-----|----|----|-------|-----|-----|-------|-------|-------|-------|--------|
 | 4 | 1 | 0 | 0 | 7 | 0 | 50 kg | 3 kg | 10 kg | 25 % | 40 % | 15 % | \$2.000 | 1 |
 
 ### Cálculo de los parámetros
@@ -201,3 +201,139 @@ Adicionalmente, cuando el peso del envío sea superior a **L2 (10 kg)**, no se c
 - Cobertura de sentencias y de ramas de al menos 90 % (meta: 100 %).
 
 - Informe, repositorio, etiquetas y CHANGELOG entregados.
+
+# Parte 3 · Diseño de casos de caja negra
+
+Primero crea la rama de trabajo para no mezclar con `main`:
+
+``` sql
+git checkout -b docs/parte3
+```
+
+## 3.1 Particiones de equivalencia
+
+Se divide cada entrada en clases que el sistema debe tratar igual y se elige un representante por clase.
+
+| Entrada | Clase                 | Tipo              | Representante | Regla |
+|---------|-----------------------|-------------------|---------------|-------|
+| peso    | peso ≤ 0              | Inválida          | 0             | R1    |
+| peso    | 0 \< peso ≤ 3         | Válida (tramo 1)  | 3             | R3    |
+| peso    | 3 \< peso ≤ 10        | Válida (tramo 2)  | 5             | R3    |
+| peso    | 10 \< peso ≤ 50       | Válida (tramo 3)  | 12            | R3    |
+| peso    | peso \> 50            | Inválida          | 51            | R1    |
+| zona    | urbana                | Válida            | urbana        | R4    |
+| zona    | rural                 | Válida            | rural         | R4    |
+| zona    | nacional              | Válida            | nacional      | R4    |
+| zona    | cualquier otra        | Inválida          | aérea         | R2    |
+| cliente | normal                | Válida            | normal        | R6    |
+| cliente | frecuente             | Válida            | frecuente     | R6    |
+| cliente | vip                   | Válida            | vip           | R6    |
+| día     | 1 a 5 (entre semana)  | Válida            | 3             | R5    |
+| día     | 6 y 7 (fin de semana) | Válida            | 6             | R5    |
+| día     | menor que 1           | Inválida          | 0             | R2    |
+| día     | mayor que 7           | Inválida          | 8             | R2    |
+| cupón   | sin cupón             | Válida            | None          | R6    |
+| cupón   | ENVIO10               | Válida            | ENVIO10       | R6    |
+| cupón   | inexistente           | Válida: se ignora | PROMO99       | R7    |
+
+**Notas:** el cupón inexistente es una clase válida porque mi dígito F = 0 es par y la especificación lo ignora (R7). Para el cliente no se define clase inválida porque la especificación no establece comportamiento para otros tipos.
+
+## 3.2 Valores límite del peso
+
+Se prueba cada frontera y los valores pegados a ella. Como mi D = 0 es par, el límite L1 = 3 **está incluido** en el tramo 1 (peso ≤ 3).
+
+| Valor | Frontera                   | Resultado esperado          |
+|-------|----------------------------|-----------------------------|
+| 0     | límite inferior (inválido) | error "peso inválido"       |
+| 0,1   | justo sobre 0              | tramo 1 → \$6.000           |
+| 3     | L1, incluido               | tramo 1 → \$6.000           |
+| 3,01  | justo sobre L1             | tramo 2 → \$9.000           |
+| 10    | L2, incluido               | tramo 2 → \$9.000           |
+| 10,5  | sobre L2                   | 9.000 + 0,5 × 800 = \$9.400 |
+| 50    | PMAX, válido               | 9.000 + 40 × 800 = \$41.000 |
+| 51    | sobre PMAX                 | error "peso inválido"       |
+
+Para el día, los valores límite son 0 y 8 (inválidos) y 1, 5, 6 y 7 (bordes válidos).
+
+## 3.3 Tabla de decisión: cliente × cupón × fin de semana
+
+Orden de cálculo según mis reglas B (ambos descuentos) y E (fin de semana después de los descuentos): base → zona → descuento de cliente → cupón → +\$2.000 si es fin de semana → mínimo \$5.000 → redondeo.
+
+| Regla | Cliente   | Cupón ENVIO10 | Fin de semana | Acción                      |
+|-------|-----------|---------------|---------------|-----------------------------|
+| 1     | normal    | No            | No            | sin cambios                 |
+| 2     | normal    | No            | Sí            | +2.000                      |
+| 3     | normal    | Sí            | No            | ×0,90                       |
+| 4     | normal    | Sí            | Sí            | ×0,90 y luego +2.000        |
+| 5     | frecuente | No            | No            | ×0,95                       |
+| 6     | frecuente | No            | Sí            | ×0,95 y luego +2.000        |
+| 7     | frecuente | Sí            | No            | ×0,95 y luego ×0,90         |
+| 8     | frecuente | Sí            | Sí            | ×0,95, ×0,90 y luego +2.000 |
+| 9     | vip       | No            | No            | ×0,85                       |
+| 10    | vip       | No            | Sí            | ×0,85 y luego +2.000        |
+| 11    | vip       | Sí            | No            | ×0,85 y luego ×0,90         |
+| 12    | vip       | Sí            | Sí            | ×0,85, ×0,90 y luego +2.000 |
+
+Son 3 × 2 × 2 = 12 combinaciones, todas cubiertas.
+
+## 3.4 Matriz de casos de prueba 
+
+Los casos CP17 a CP28 usan peso 5 y zona urbana (base \$9.000); día 3 = entre semana y día 7 = fin de semana. Orden de cálculo: base → zona → cliente → cupón → +\$2.000 si es fin de semana → mínimo \$5.000 → redondeo (los \$50 suben).
+
+| ID | Req. | Entradas (peso, zona, cliente, día, cupón) | Esperado | Técnica |
+|---------------|---------------|---------------|---------------|---------------|
+| CP01 | R1 | 0, urbana, normal, 3, — | error "peso inválido" | Valor límite |
+| CP02 | R1 | 51, urbana, normal, 3, — | error "peso inválido" | Valor límite |
+| CP03 | R2 | 5, aérea, normal, 3, — | error | Partición inválida |
+| CP04 | R2 | 5, urbana, normal, 8, — | error | Partición inválida |
+| CP05 | R2 | 5, urbana, normal, 0, — | error | Valor límite |
+| CP06 | R3 | 0,1, urbana, normal, 3, — | \$6.000 | Valor límite |
+| CP07 | R3 | 3, urbana, normal, 3, — | \$6.000 | Valor límite |
+| CP08 | R3 | 3,01, urbana, normal, 3, — | \$9.000 | Valor límite |
+| CP09 | R3 | 10, urbana, normal, 3, — | \$9.000 | Valor límite |
+| CP10 | R3 | 10,5, urbana, normal, 3, — | \$9.400 | Valor límite |
+| CP11 | R3 | 50, urbana, normal, 3, — | \$41.000 | Valor límite |
+| CP12 | R4 | 5, rural, normal, 3, — | \$11.300 | Partición |
+| CP13 | R4 | 5, nacional, normal, 3, — | \$12.600 | Partición |
+| CP14 | R5 | 5, urbana, normal, 6, — | \$11.000 | Partición (sábado) |
+| CP15 | R7 | 5, urbana, normal, 3, PROMO99 | \$9.000 | Partición |
+| CP16 | R8 | 3, urbana, vip, 3, ENVIO10 | \$5.000 | Mínimo |
+| CP17 | R6 | 5, urbana, normal, 3, — | \$9.000 | Tabla, regla 1 |
+| CP18 | R5 | 5, urbana, normal, 7, — | \$11.000 | Tabla, regla 2 |
+| CP19 | R6 | 5, urbana, normal, 3, ENVIO10 | \$8.100 | Tabla, regla 3 |
+| CP20 | R5, R6 | 5, urbana, normal, 7, ENVIO10 | \$10.100 | Tabla, regla 4 |
+| CP21 | R6, R8 | 5, urbana, frecuente, 3, — | \$8.600 | Tabla, regla 5 |
+| CP22 | R5, R6, R8 | 5, urbana, frecuente, 7, — | \$10.600 | Tabla, regla 6 |
+| CP23 | R6, R8 | 5, urbana, frecuente, 3, ENVIO10 | \$7.700 | Tabla, regla 7 |
+| CP24 | R5, R6, R8 | 5, urbana, frecuente, 7, ENVIO10 | \$9.700 | Tabla, regla 8 |
+| CP25 | R6, R8 | 5, urbana, vip, 3, — | \$7.700 | Tabla, regla 9 |
+| CP26 | R5, R6, R8 | 5, urbana, vip, 7, — | \$9.700 | Tabla, regla 10 |
+| CP27 | R6, R8 | 5, urbana, vip, 3, ENVIO10 | \$6.900 | Tabla, regla 11 |
+| CP28 | R5, R6, R8 | 5, urbana, vip, 7, ENVIO10 | \$8.900 | Tabla, regla 12 |
+
+### Cálculo paso a paso (6 casos)
+
+**CP12** (5 kg, rural, normal, día 3, sin cupón) 1. Tramo 2 (3 \< 5 ≤ 10): \$9.000 2. Rural +25 %: 9.000 × 1,25 = \$11.250 3. Sin descuentos ni fin de semana: \$11.250 4. Mayor que \$5.000. Redondeo, el \$50 sube: **\$11.300**
+
+**CP16** (3 kg, urbana, vip, día 3, ENVIO10) 1. Tramo 1 (3 ≤ 3): \$6.000 2. Urbana: \$6.000 3. VIP −15 %: 6.000 × 0,85 = \$5.100 4. Cupón −10 %: 5.100 × 0,90 = \$4.590 5. Menor que \$5.000, aplica el mínimo: **\$5.000**
+
+**CP20** (5 kg, urbana, normal, día 7, ENVIO10) 1. Tramo 2: \$9.000 2. Cliente normal: sin descuento 3. Cupón −10 %: 9.000 × 0,90 = \$8.100 4. Domingo, E impar, se suma después: 8.100 + 2.000 = \$10.100 5. Ya es múltiplo de 100: **\$10.100**
+
+**CP24** (5 kg, urbana, frecuente, día 7, ENVIO10) 1. Tramo 2: \$9.000 2. Frecuente −5 %: 9.000 × 0,95 = \$8.550 3. Cupón −10 %: 8.550 × 0,90 = \$7.695 4. Domingo, después de descuentos: 7.695 + 2.000 = \$9.695 5. Redondeo al múltiplo de 100 más cercano: **\$9.700**
+
+**CP28** (5 kg, urbana, vip, día 7, ENVIO10) 1. Tramo 2: \$9.000 2. VIP −15 %: 9.000 × 0,85 = \$7.650 3. Cupón −10 %: 7.650 × 0,90 = \$6.885 4. Domingo, después de descuentos: 6.885 + 2.000 = \$8.885 5. Redondeo: **\$8.900**
+
+**CP11** (50 kg, urbana, normal, día 3, sin cupón) 1. Tramo 3: 9.000 + (50 − 10) × 800 = 9.000 + 32.000 = \$41.000 2. Urbana, sin descuentos, día entre semana: **\$41.000**
+
+### Matriz de trazabilidad 
+
+| Requisito | Historia | Casos de prueba                          |
+|-----------|----------|------------------------------------------|
+| R1        | HU-1     | CP01, CP02                               |
+| R2        | HU-1     | CP03, CP04, CP05                         |
+| R3        | HU-2     | CP06 a CP11                              |
+| R4        | HU-2     | CP12, CP13                               |
+| R5        | HU-2     | CP14, CP18, CP20, CP22, CP24, CP26, CP28 |
+| R6        | HU-3     | CP17 a CP28                              |
+| R7        | HU-1     | CP15                                     |
+| R8        | HU-3     | CP16, CP21 a CP28                        |
