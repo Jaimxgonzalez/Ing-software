@@ -120,3 +120,84 @@ Adicionalmente, cuando el peso del envío sea superior a **L2 (10 kg)**, no se c
 | R6        | HU-3     | (se completa en Parte 3) |
 | R7        | HU-1     | (se completa en Parte 3) |
 | R8        | HU-3     | (se completa en Parte 3) |
+
+## Parte 2 · Plan de pruebas
+
+### 2.1 Alcance
+
+**Dentro del alcance:** la función `calc` del módulo `envios.py` (versión 1.0.0), que calcula el costo de un envío a partir de peso, zona, cliente, día y cupón, según las reglas R1 a R8 con mis parámetros (PMAX = 50 kg, L1 = 3 kg, L2 = 10 kg, RR = 25 %, RN = 40 %, V = 15 %, S = \$2.000).
+
+**Fuera del alcance:** interfaz de usuario, base de datos, facturación, rendimiento y seguridad. La solicitud de cambio del cliente empresarial se prueba en la Parte 8.
+
+### 2.2 Niveles de prueba
+
+| Nivel | Cómo se aplica a este caso |
+|----|----|
+| **Unidad** | Probar `calc` de forma aislada con los casos de la Parte 3 (pytest). Tras refactorizar, probar también cada función extraída: validación, tarifa base, recargo de zona, descuentos, fin de semana y redondeo. |
+| **Integración** | Verificar que las funciones extraídas y las estrategias de zona y descuento trabajan juntas en el orden correcto: base → zona → cliente → cupón → fin de semana → mínimo → redondeo. |
+| **Sistema** | Probar `calc` completa con combinaciones de entradas (zona × cliente × cupón × día), como la usaría el sistema de envíos de EnvíaYa. |
+| **Aceptación** | Verificar los criterios Dado/Cuando/Entonces de HU-1, HU-2 y HU-3 con los ejemplos calculados a mano. El “cliente” que acepta es EnvíaYa, representada por el docente. |
+
+### 2.3 Estrategia, ambiente y roles
+
+**Estrategia**
+
+- Caja negra: particiones de equivalencia, valores límite y tabla de decisión.
+
+- Caja blanca: cobertura de sentencias y de ramas, mediante caminos independientes.
+
+- Los resultados esperados se calculan a mano desde la especificación, nunca ejecutando el código heredado.
+
+- Pruebas de regresión después de cada corrección y después del refactor.
+
+**Ambiente**
+
+- Windows con PowerShell, Python 3 (Python 3.14.8), pytest y pytest-cov.
+
+- Git y GitHub para el control de versiones.
+
+**Roles** (trabajo individual: el estudiante asume todos los roles)
+
+| Rol                            | Responsabilidad                       |
+|--------------------------------|---------------------------------------|
+| Analista de requisitos         | Especificación e historias de usuario |
+| Diseñador de pruebas           | Casos de caja negra y caja blanca     |
+| Automatizador                  | Suite pytest y medición de cobertura  |
+| Gestor de defectos             | Registro y clasificación de defectos  |
+| Desarrollador de mantenimiento | Refactorización y correcciones        |
+| Gestor de configuración        | Ramas, etiquetas y CHANGELOG          |
+
+### 2.4 Riesgos y mitigación
+
+| Riesgo | Probabilidad | Impacto | Mitigación |
+|----|----|----|----|
+| Errores de cálculo a mano en los resultados esperados | Media | Alto | Revisar cada cálculo dos veces y contrastarlo con la especificación |
+| Confundir un defecto con una regla que no me aplica (paridad) | Media | Alto | Tabla de paridad en el informe; contrastar cada línea con mi especificación |
+| Errores de punto flotante en el redondeo | Alta | Medio | Usar `Decimal`; casos de borde en los \$50 |
+| El refactor introduce defectos nuevos | Media | Alto | Regresión completa tras cada cambio; ramas separadas |
+| Pérdida de trabajo o conflictos en Git | Media | Medio | Commits frecuentes y push a GitHub |
+| Poco tiempo (entrega hoy 11:59 p. m.) | Media | Alto | Priorizar las partes por puntaje y seguir el orden planeado |
+
+### 2.5 Criterios de entrada y salida
+
+**Criterios de entrada** (para empezar a ejecutar las pruebas)
+
+- Especificación R1 a R8 definida con mis valores.
+
+- CONFIG llenado y código heredado etiquetado como `v1.0.0`.
+
+- Casos de prueba diseñados con resultados esperados calculados a mano.
+
+- Python, pytest y pytest-cov instalados y funcionando.
+
+**Criterios de salida** (para dar por terminada la prueba)
+
+- Todos los casos ejecutados y sus resultados registrados.
+
+- Todos los defectos reportados, corregidos y verificados con regresión.
+
+- El 100 % de los casos pasan tras las correcciones.
+
+- Cobertura de sentencias y de ramas de al menos 90 % (meta: 100 %).
+
+- Informe, repositorio, etiquetas y CHANGELOG entregados.
