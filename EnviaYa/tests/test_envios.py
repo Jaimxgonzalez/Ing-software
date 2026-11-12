@@ -1,7 +1,7 @@
 import os
 import sys
 
-import pytest # type: ignore
+import pytest  # type: ignore
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from envios import calc  # noqa: E402
@@ -100,3 +100,23 @@ def test_ejemplo_1_rural_vip_sabado_cupon():
 
 def test_ejemplo_2_nacional_frecuente_domingo():
     assert calc(12, "nacional", "frecuente", 7) == 16100
+
+
+# ---------- Parte 8: cliente empresarial (12 %; sin recargo de zona si peso > L2) ----------
+@pytest.mark.parametrize(
+    "peso, zona, cliente, dia, cupon, esperado",
+    [
+        (5,    "urbana",   "empresarial", 3, None,      7900),    # CE01
+        (5,    "rural",    "empresarial", 3, None,      9900),    # CE02
+        (12,   "rural",    "empresarial", 3, None,      9300),    # CE03
+        (12,   "nacional", "empresarial", 3, None,      9300),    # CE04
+        (10,   "rural",    "empresarial", 3, None,      9900),    # CE05
+        (10.5, "rural",    "empresarial", 3, None,      8300),    # CE06
+        (12,   "rural",    "frecuente",   3, None,      12600),   # CE07
+        (5,    "urbana",   "empresarial", 7, "ENVIO10", 9100),    # CE08
+        (12,   "rural",    "empresarial", 7, "ENVIO10", 10400),   # CE09
+        (3,    "urbana",   "empresarial", 3, "ENVIO10", 5000),    # CE10
+    ],
+)
+def test_cliente_empresarial(peso, zona, cliente, dia, cupon, esperado):
+    assert calc(peso, zona, cliente, dia, cupon) == esperado

@@ -22,6 +22,8 @@ MULTIPLO_REDONDEO = 100
 DIA_MIN = 1
 DIA_SABADO = 6
 DIA_MAX = 7
+CLIENTE_EMPRESARIAL = "empresarial"
+DESC_EMPRESARIAL = 0.12
 
 
 # ---------- Patron Estrategia ----------
@@ -70,6 +72,7 @@ ZONAS = {
 CLIENTES = {
     "frecuente": Descuento(DESC_FRECUENTE),
     "vip": Descuento(CONFIG["DESC_VIP"]),
+    CLIENTE_EMPRESARIAL: Descuento(DESC_EMPRESARIAL),
 }
 CUPONES = {
     "ENVIO10": Descuento(DESC_CUPON_ENVIO10),
@@ -102,11 +105,17 @@ def _redondear(valor):
     return int(cociente.quantize(Decimal(1), rounding=ROUND_HALF_UP)) * MULTIPLO_REDONDEO
 
 
+def _cobra_recargo_zona(peso, cliente):
+    """El cliente empresarial no paga recargo de zona si el peso supera L2."""
+    return not (cliente == CLIENTE_EMPRESARIAL and peso > CONFIG["L2"])
+
+
 def calc(peso, zona, cliente, dia, cupon=None):
     """Costo del envio en pesos."""
     _validar(peso, zona, dia)
     total = _tarifa_base(peso)
-    total = ZONAS[zona].aplicar(total)
+    if _cobra_recargo_zona(peso, cliente):
+        total = ZONAS[zona].aplicar(total)
     total = CLIENTES.get(cliente, SIN_AJUSTE).aplicar(total)
     total = CUPONES.get(cupon, SIN_AJUSTE).aplicar(total)  # cupon inexistente se ignora (F par)
     if dia >= DIA_SABADO:  # despues de descuentos (E impar)

@@ -1216,3 +1216,192 @@ El trabajo se hizo de forma incremental el 11 de noviembre de 2026. Los commits 
 | 20:10 a 20:12 | Informe Parte 6 | `d34e645`, `b10856f` |
 
 Para verificarlo: `git log --all --format="%h %ad %s" --date=format:"%H:%M"`.
+
+## 
+
+# Parte 8 · Solicitud de cambio y análisis de impacto
+
+**Solicitud asignada:** (A + F) mod 3 = (4 + 0) mod 3 = 1. Nuevo tipo de cliente empresarial con 12 % de descuento; si el peso es mayor que L2 (10 kg), no se cobra el recargo de zona.
+
+**Supuesto:** la excepción del recargo de zona aplica solo al cliente empresarial, porque el enunciado la incluye dentro de esa solicitud.
+
+![](images/clipboard-2957712204.png)
+
+## 8.1 Análisis de impacto
+
+El análisis parte de la matriz de trazabilidad (requisito → historia → casos de prueba): se busca qué requisitos toca el cambio y, siguiendo la matriz, qué historias, casos y partes del código dependen de ellos.
+
+### Requisitos
+
+| Requisito | ¿Afectado? | Cómo |
+|------------------------|------------------------|------------------------|
+| R1 (peso válido) | No cambia | Se re-ejecuta en la regresión |
+| R2 (zona y día válidos) | No cambia | Una zona inválida sigue lanzando error aunque el cliente sea empresarial |
+| R3 (tarifa base) | No cambia | Solo se reutiliza la condición peso \> L2 |
+| R4 (recargo de zona) | **Modificado** | Excepción: el cliente empresarial con peso \> 10 kg no paga recargo |
+| R5 (fin de semana) | No cambia | Se re-ejecuta en la regresión |
+| R6 (descuentos) | **Modificado** | Nuevo cliente `empresarial` con 12 %, combinable con el cupón |
+| R7 (cupón inexistente) | No cambia | Se re-ejecuta en la regresión |
+| R8 (mínimo y redondeo) | No cambia | Se re-ejecuta; CE10 verifica el mínimo con el nuevo cliente |
+
+### Historias de usuario
+
+| Historia | ¿Afectada? | Cómo |
+|------------------------|------------------------|------------------------|
+| HU-1 (validación) | No | Las validaciones no cambian |
+| HU-2 (tarifa por peso, zona y día) | **Modificada** | R4 tiene una excepción |
+| HU-3 (descuentos, mínimo y redondeo) | **Modificada** | R6 tiene un cliente nuevo |
+| HU-4 (cliente empresarial) | **Nueva** | Cubre el cambio solicitado |
+
+### Casos de prueba
+
+| Casos | Acción |
+|------------------------------------|------------------------------------|
+| CP12, CP13 (zona) | Se re-ejecutan: cubren R4 |
+| CP17 a CP28 (tabla de decisión) | Se re-ejecutan: cubren R6 |
+| Los demás casos (CP01 a CP11, CP14 a CP16, CP29) | Se re-ejecutan como regresión |
+| CE01 a CE10 | **Nuevos**: cubren el cliente empresarial y la excepción del recargo |
+| Partición de cliente (3.1) | Nueva clase válida: `empresarial` |
+| Tabla de decisión (3.3) | Se amplía con la fila `empresarial` |
+
+### Código
+
+| Parte del código | Impacto |
+|------------------------------------|------------------------------------|
+| Constantes (`CLIENTE_EMPRESARIAL`, `DESC_EMPRESARIAL`) | Nuevas |
+| Diccionario `CLIENTES` | Una línea nueva con `Descuento(DESC_EMPRESARIAL)` |
+| `_cobra_recargo_zona` | Función nueva que decide si se cobra el recargo de zona |
+| `calc` | Modificada: aplica el recargo de zona solo si `_cobra_recargo_zona` lo permite |
+| `_validar`, `_tarifa_base`, `_redondear` | Sin cambios |
+| Clases `Ajuste`, `Recargo`, `Descuento` | Sin cambios: el patrón Estrategia absorbe el cliente nuevo |
+
+### Matriz de trazabilidad actualizada
+
+| Requisito | Historia   | Casos de prueba               |
+|-----------|------------|-------------------------------|
+| R4        | HU-2, HU-4 | CP12, CP13, CE02 a CE07, CE09 |
+| R6        | HU-3, HU-4 | CP17 a CP28, CE01 a CE10      |
+| R8        | HU-3       | CP16, CP21 a CP28, CE10       |
+
+![](images/clipboard-1931048825.png)
+
+![](images/clipboard-1433508976.png)
+
+## 8.2 Tipo de mantenimiento
+
+**Clasificación: mantenimiento adaptativo.**
+
+La solicitud viene de un cambio en las reglas del negocio de EnviaYa: aparece un nuevo tipo de cliente (empresarial, con 12 % de descuento) y una excepción en el recargo de zona. El sistema no tenía ningún defecto en esa parte; se **adapta** a un nuevo requisito externo.
+
+| Tipo | ¿Aplica? | Razón |
+|------------------------|------------------------|------------------------|
+| Correctivo | No | No se corrige ningún defecto: el comportamiento anterior era correcto según la especificación |
+| **Adaptativo** | **Sí** | El entorno de negocio cambió y el software se ajusta a las nuevas reglas |
+| Perfectivo | No | No se busca mejorar rendimiento, legibilidad ni estructura del código existente |
+| Preventivo | No | No se anticipa un problema futuro; aunque el patrón Estrategia de la Parte 6 facilitó el cambio, este cambio en sí responde a una solicitud |
+
+**Nota de justificación:** algunos autores clasifican como perfectivo el agregar funcionalidad nueva. Aquí se elige adaptativo porque la causa del cambio es una modificación de las reglas de negocio solicitada por el cliente, no una mejora iniciada por el equipo.
+
+**Impacto en la versión:** como agrega funcionalidad sin romper la firma de `calc`, corresponde a una versión **MINOR** (`v2.1.0`).
+
+## 8.3 Casos de prueba (escritos antes de implementar)
+
+Siguiendo el enfoque de pruebas primero, los 10 casos se escribieron en `tests/test_envios.py` **antes** de tocar `envios.py`. Se ejecutaron contra el código v2.0.0 y fallaron 9 de 10 (CE07 pasa porque no usa cliente empresarial y comprueba que la excepción no se extiende a otros clientes).
+
+| ID | Req. | Entradas (peso, zona, cliente, día, cupón) | Cálculo a mano | Esperado | Obtenido antes | Resultado |
+|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+| CE01 | R6 | 5, urbana, empresarial, 3, — | 9.000 × 0,88 = 7.920 | \$7.900 | \$9.000 | Falla |
+| CE02 | R4, R6 | 5, rural, empresarial, 3, — | 9.000 × 1,25 = 11.250; × 0,88 = 9.900 | \$9.900 | \$11.300 | Falla |
+| CE03 | R4, R6 | 12, rural, empresarial, 3, — | 10.600 sin recargo; × 0,88 = 9.328 | \$9.300 | \$13.300 | Falla |
+| CE04 | R4, R6 | 12, nacional, empresarial, 3, — | 10.600 sin recargo; × 0,88 = 9.328 | \$9.300 | \$14.800 | Falla |
+| CE05 | R4, R6 | 10, rural, empresarial, 3, — | 10 no es mayor que 10, sí hay recargo: 9.000 × 1,25 = 11.250; × 0,88 = 9.900 | \$9.900 | \$11.300 | Falla |
+| CE06 | R4, R6 | 10,5, rural, empresarial, 3, — | 9.400 sin recargo; × 0,88 = 8.272 | \$8.300 | \$11.800 | Falla |
+| CE07 | R4 | 12, rural, frecuente, 3, — | 10.600 × 1,25 = 13.250; × 0,95 = 12.587,5 | \$12.600 | \$12.600 | Pasa |
+| CE08 | R5, R6 | 5, urbana, empresarial, 7, ENVIO10 | 9.000 × 0,88 = 7.920; × 0,90 = 7.128; + 2.000 = 9.128 | \$9.100 | \$10.100 | Falla |
+| CE09 | R4, R5, R6 | 12, rural, empresarial, 7, ENVIO10 | 10.600 sin recargo; × 0,88 = 9.328; × 0,90 = 8.395,2; + 2.000 = 10.395,2 | \$10.400 | \$13.900 | Falla |
+| CE10 | R8 | 3, urbana, empresarial, 3, ENVIO10 | 6.000 × 0,88 = 5.280; × 0,90 = 4.752; menor que 5.000, mínimo | \$5.000 | \$5.400 | Falla |
+
+### Técnicas que originaron los casos
+
+| Casos | Técnica |
+|------------------------------------|------------------------------------|
+| CE01, CE02 | Partición: cliente empresarial con peso ≤ L2 (conserva recargo) |
+| CE03, CE04 | Partición: empresarial con peso \> L2 en zona rural y nacional (sin recargo) |
+| CE05, CE06 | Valor límite alrededor de L2 = 10 (10 con recargo, 10,5 sin recargo) |
+| CE07 | Caso negativo: la excepción no aplica a otros clientes |
+| CE08, CE09 | Combinación con cupón y fin de semana |
+| CE10 | Mínimo de \$5.000 con el nuevo descuento |
+
+### Evidencia
+
+![](images/clipboard-3863014735.png)
+
+## 8.4 Implementación
+
+El cambio se hizo en la rama `feature/cliente-empresarial`, **después** de escribir y ejecutar las pruebas del 8.3. Se modificó solo `envios.py`, con cuatro cambios:
+
+### Cambio 1: constantes nuevas
+
+``` python
+CLIENTE_EMPRESARIAL = "empresarial"
+DESC_EMPRESARIAL = 0.12
+```
+
+### Cambio 2: una línea nueva en `CLIENTES`
+
+``` python
+CLIENTES = {
+    "frecuente": Descuento(DESC_FRECUENTE),
+    "vip": Descuento(CONFIG["DESC_VIP"]),
+    CLIENTE_EMPRESARIAL: Descuento(DESC_EMPRESARIAL),
+}
+```
+
+Gracias al patrón Estrategia de la Parte 6, el descuento nuevo es una entrada más del diccionario y no hubo que modificar la lógica de descuentos.
+
+### Cambio 3: función nueva
+
+``` python
+def _cobra_recargo_zona(peso, cliente):
+    """El cliente empresarial no paga recargo de zona si el peso supera L2."""
+    return not (cliente == CLIENTE_EMPRESARIAL and peso > CONFIG["L2"])
+```
+
+Devuelve falso solo cuando el cliente es empresarial **y** el peso es mayor que L2 (10 kg). En los demás casos se cobra el recargo.
+
+### Cambio 4: uso en `calc`
+
+Antes:
+
+``` python
+total = ZONAS[zona].aplicar(total)
+```
+
+Después:
+
+``` python
+if _cobra_recargo_zona(peso, cliente):
+    total = ZONAS[zona].aplicar(total)
+```
+
+La validación de la zona sigue en `_validar`, que se ejecuta antes. Por eso una zona inválida sigue lanzando `ValueError` aunque el cliente sea empresarial.
+
+### Resumen de cambios
+
+| Elemento | Tipo de cambio |
+|------------------------------------|------------------------------------|
+| `CLIENTE_EMPRESARIAL`, `DESC_EMPRESARIAL` | Constantes nuevas |
+| `CLIENTES` | Una línea nueva |
+| `_cobra_recargo_zona` | Función nueva |
+| `calc` | Una condición agregada |
+| `_validar`, `_tarifa_base`, `_redondear`, clases de estrategia | Sin cambios |
+
+### Resultado de la regresión
+
+Se ejecutaron las 41 pruebas: las 31 anteriores (regresión) y las 10 nuevas (CE01 a CE10). **Todas pasan.**
+
+![](images/clipboard-3863014735.png)
+
+# Conclusión
+
+En este parcial siguiendo las indicaciones y con ayuda de la **IA** actué como equipo de calidad y mantenimiento DE EnviaYa sobre la función `calc`, con mi especificación personalizada (código 0182410070). Diseñé 28 casos de caja negra y un caso de caja blanca, y los automaticé con pytest: contra el código heredado 16 de 31 pruebas fallaron, pese a una cobertura del 100 %, lo que muestra que cubrir líneas no garantiza resultados correctos. Se identificaron y corrigieron cinco defectos (DEF-01 a DEF-05), cada uno en su propia rama, hasta llegar a 31 pruebas en verde. Después refactoricé con constantes, funciones extraídas, eliminación del argumento `flag` y patrón Estrategia, lo cual justificó una versión MAJOR (v2.0.0). Por último, implementé el cliente empresarial escribiendo las pruebas primero, con una versión MINOR (v2.1.0) y 41 pruebas pasando. Git, con ramas, merges, etiquetas y CHANGELOG, dejó trazabilidad completa del trabajo. La lección principal es que probar, versionar y estructurar bien el código hace que los cambios futuros sean más baratos y seguros.
