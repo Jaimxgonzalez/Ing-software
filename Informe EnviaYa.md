@@ -626,3 +626,374 @@ Mis errores anteriores: DEF-02 dije 11000 (es 9000, porque el día 8 no suma rec
 | Cobertura de ramas | **100 %** (26 de 26) |
 
 Nota para el informe: coverage.py cuenta `p <= 0 or p > 50` como una sola decisión, por eso mide 26 ramas y no las 28 aristas de mi grafo. Y la lección: **100 % de cobertura y aun así 16 fallos**; la cobertura mide qué se ejecuta, no si el resultado es correcto.
+
+# Parte 6 · Mantenimiento y refactorización
+
+## 6.1 Malos olores (code smells)
+
+### Metodología
+
+Se revisó `calc` (líneas 11-40) de dos formas:
+
+1.  **Herramientas:** `pylint` (nota 6,90/10) y `radon` (complejidad ciclomática 15, rango C).
+
+2.  **Revisión manual** con una lista de verificación. Pylint no detecta Magic Number, Cryptic Naming, Duplicate Code ni Primitive Obsession.
+
+![](images/clipboard-820486660.png)
+
+**Criterio smell vs. defecto:** un *defecto* cambia el resultado y viola un requisito (DEF-01 a DEF-05). Un *mal olor* no cambia el resultado, pero hace el código difícil de leer, probar y modificar.
+
+### Tabla de malos olores
+
+| \# | Mal olor | Líneas | Evidencia | Deuda técnica |
+|----|----|----|----|----|
+| 1 | **Magic Number** | 12 (`50`), 15 (`6000`), 17 y 19 (`9000`), 19 (`800`), 27 (`6`), 30 (`0.05`), 35 (`0.10`), 37 (`5000`), 40 (`100`) | Manual | Para cambiar una tarifa hay que buscar números sin significado. La configuración es inconsistente: `L1` y `L2` están en `CONFIG`, pero `50`, `6000` y `5000` no. |
+| 2 | **Flag Argument** | 11 (`flag=False`) y 38-39 | Manual | `calc` calcula o calcula e imprime según un booleano. Son dos comportamientos en una función y el `print` es un efecto secundario dentro de un cálculo. |
+| 3 | **Long Method** | 11-40 | Pylint R0912: 14 ramas (límite 12). Radon: complejidad 15 | Una sola función valida, tarifa, recarga, descuenta, aplica mínimo, imprime y redondea. Tiene demasiados caminos y es difícil de probar y de entender. |
+| 4 | **Switch Statements** (cadenas `if/elif`) | 20-25 (zona) y 29-35 (cliente y cupón) | Pylint R0912 | Agregar una zona, cliente o cupón obliga a modificar `calc`. Viola el principio Open/Closed. |
+| 5 | **Cryptic Naming** | 11 (`p, z, c, d, cup`) y `t` en todo el cuerpo | Manual | Hay que adivinar qué significa cada variable. `t` cambia de sentido: tarifa base, tarifa con recargo y total con descuento. |
+| 6 | **Dead Code** (autoasignación) | 21 (`t = t`) | Pylint W0127 | No hace nada. Solo añade ruido y confunde al lector. |
+| 7 | **Duplicate Code** | 23, 25, 30, 32, 35 | Manual | La fórmula `t = t ± t * X` se repite 5 veces. Si cambia el modo de calcular, hay que tocar cada línea. |
+| 8 | **Primitive Obsession** | 20, 22, 24, 29, 31, 34 (`"urbana"`, `"rural"`, `"vip"`, `"ENVIO10"`) | Manual | Zona, cliente y cupón son strings sueltos, sin tipo ni validación. Un error de tipeo pasa en silencio, como en DEF-01. |
+| 9 | **Long Parameter List** | 11 | Pylint R0913 y R0917: 6 argumentos (límite 5) | Muchos parámetros posicionales hacen fácil pasarlos en orden equivocado. Uno de ellos es el flag. |
+| 10 | **Nested Conditional** y comparación no idiomática | 33-35 (`if cup != None:` con un `if` dentro) | Pylint C0121 | Anidamiento innecesario. `!= None` debe escribirse `is not None`. Se puede aplanar en una sola condición. |
+
+### Avisos de pylint sin smell propio
+
+| Aviso | Línea | Comentario |
+|----|----|----|
+| R1731 `consider-using-max-builtin` | 36 | El mínimo de \$5.000 se resuelve con `max(t, MINIMO)`. Se aplica en el refactor. |
+| C0114 y C0116 | 1 y 11 | Falta documentación del módulo y de la función. |
+| C0304 | 40 | Falta el salto de línea final (formato). |
+
+### Métricas “antes” (v1.0.0)
+
+| Métrica                                   | Valor                           |
+|-------------------------------------------|---------------------------------|
+| Complejidad ciclomática de `calc` (radon) | **15** (rango C)                |
+| LOC / SLOC / LLOC                         | 40 / 37 / 31                    |
+| Ramas (pylint)                            | 14/12                           |
+| Nota pylint                               | 6,90/10                         |
+| Cobertura (pytest-cov)                    | 100 % (29 sentencias, 26 ramas) |
+| Pruebas que pasan                         | 15/31                           |
+
+**Cálculo manual de la complejidad (nodos predicado + 1):** hay 14 predicados. Las líneas 12 (2, por el `or`), 14, 16, 20, 22, 24, 27, 29, 31, 33, 34, 36 y 38 aportan 1 cada una. Resultado: 14 + 1 = **15**, igual que radon.
+
+### Qué NO es un mal olor (para la sustentación)
+
+- **La falta de `else` en las líneas 20-25 y de validación del día** son los defectos DEF-01 y DEF-02, porque incumplen R2.
+
+- **`d > 6` (línea 27)** es DEF-03, no un smell.
+
+- **El `50` de la línea 12** coincide con tu PMAX, así que no cambia el resultado. Por eso es Magic Number y no defecto.
+
+### Defectos y su ubicación (referencia cruzada)
+
+| Defecto | Línea(s)                                            |
+|---------|-----------------------------------------------------|
+| DEF-01  | 20-25 (falta el `else`)                             |
+| DEF-02  | falta validar `d` antes de la línea 27              |
+| DEF-03  | 27 (`d > 6` debe ser `d >= 6`)                      |
+| DEF-04  | 27-28 (el recargo va antes de los descuentos 29-35) |
+| DEF-05  | 40 (`int(t / 100) * 100` trunca)                    |
+
+## 6.2 Clasificación de los cambios
+
+### Criterio de clasificación
+
+| Tipo | Se hace cuando... | Cambia el resultado |
+|----|----|----|
+| **Correctivo** | Hay un defecto que incumple un requisito | Sí (lo corrige) |
+| **Adaptativo** | Cambia el entorno o una regla de negocio | Sí (nueva regla) |
+| **Perfectivo** | Se mejora legibilidad, estructura o rendimiento | No |
+| **Preventivo** | Se reduce el riesgo de fallos o se facilita el cambio futuro | No |
+
+### Tabla de cambios
+
+| \# | Cambio | Rama | Líneas (v1.0.0) | Tipo | Justificación |
+|----|----|----|----|----|----|
+| 1 | DEF-01: lanzar `ValueError` si la zona es inválida | `fix/DEF-01` | 20-25 | Correctivo | Incumple R2: acepta zonas desconocidas sin recargo ni error. |
+| 2 | DEF-02: validar que el día esté entre 1 y 7 | `fix/DEF-02` | antes de 27 | Correctivo | Incumple R2: acepta días inválidos. |
+| 3 | DEF-03: `d > 6` pasa a `d >= 6` | `fix/DEF-03` | 27 | Correctivo | El sábado no cobraba recargo, contra R5. |
+| 4 | DEF-04: recargo de fin de semana después de los descuentos | `fix/DEF-04` | 27-35 | Correctivo | Con tu E = 7 (impar) debe ir después. El mínimo de \$5.000 se aplica tras sumarlo. |
+| 5 | DEF-05: redondear al múltiplo de 100 más cercano (50 hacia arriba) | `fix/DEF-05` | 40 | Correctivo | `int(t/100)*100` trunca, contra R8. |
+| 6 | Constantes con nombre para los números mágicos | `refactor/estrategia` | 12, 15, 17, 19, 27, 30, 35, 37, 40 | Perfectivo | Mejora la legibilidad y centraliza la configuración. |
+| 7 | Nombres descriptivos y eliminar `t = t` | `refactor/estrategia` | 11-40 y 21 | Perfectivo | Mejora la legibilidad; el resultado no cambia. |
+| 8 | Extraer funciones (validar, tarifa base, redondeo) y aplanar el condicional del cupón | `refactor/estrategia` | 11-40 y 33-35 | Perfectivo | Reduce el Long Method y la complejidad por función. |
+| 9 | Eliminar el argumento `flag` y su `print` | `refactor/estrategia` | 11 y 38-39 | Perfectivo | Separa calcular de imprimir y baja a 5 los parámetros. |
+| 10 | Patrón Estrategia para zonas y descuentos | `refactor/estrategia` | 20-35 | Preventivo | No arregla nada hoy. Evita modificar `calc` al agregar zonas, clientes o cupones. |
+| 11 | Cliente empresarial 12 % y sin recargo de zona si peso \> 10 | `feature/cliente-empresarial` | nueva | Adaptativo | Nueva regla de negocio (Parte 8). |
+
+**Resumen:** 5 correctivos, 4 perfectivos, 1 preventivo y 1 adaptativo.
+
+### Relación entre malos olores (6.1) y cambios (6.2)
+
+| Mal olor                | Cambio que lo resuelve                          |
+|-------------------------|-------------------------------------------------|
+| 1\. Magic Number        | #6                                              |
+| 2\. Flag Argument       | #9                                              |
+| 3\. Long Method         | #8                                              |
+| 4\. Switch Statements   | #10                                             |
+| 5\. Cryptic Naming      | #7                                              |
+| 6\. Dead Code           | #7                                              |
+| 7\. Duplicate Code      | #10 (cada estrategia aplica su porcentaje) y #8 |
+| 8\. Primitive Obsession | #10                                             |
+| 9\. Long Parameter List | #9                                              |
+| 10\. Nested Conditional | #8                                              |
+
+### Orden de ejecución y por qué
+
+1.  Primero los correctivos (#1 a #5), uno por rama. Cada uno debe convertirse en verde algunas de mis pruebas fallidas, y eso es la evidencia.
+
+2.  Luego los perfectivos y preventivos (#6 a #10) en `refactor/estrategia`. Aquí la regresión no debe cambiar ningún resultado: si una prueba cambia, el cambio ya no es un refactor.
+
+3.  Al final el adaptativo (#11), con las pruebas escritas primero.
+
+## 6.3 Refactorización
+
+### Paso 1: los 5 fixes (uno por rama)
+
+**FIX 1: DEF-01 (zona inválida)**
+
+``` sql
+git checkout -b fix/DEF-01
+```
+
+![](images/clipboard-1420589505.png)
+
+``` sql
+git checkout -b fix/DEF-02
+```
+
+![](images/clipboard-2086631062.png)
+
+**FIX 2: DEF-02 (día fuera de 1 a 7)**
+
+``` sql
+git checkout -b fix/DEF-02
+```
+
+![](images/clipboard-4213395211.png)
+
+``` sql
+python -m pytest
+```
+
+![](images/clipboard-3039242032.png)
+
+**FIX 3: DEF-03 (el sábado debe cobrar)**
+
+``` sql
+git checkout -b fix/DEF-03
+```
+
+![](images/clipboard-297331559.png)
+
+``` sql
+python -m pytest
+```
+
+![](images/clipboard-2670384829.png)
+
+**FIX 4: DEF-04 (el recargo va después de los descuentos)**
+
+``` sql
+git checkout -b fix/DEF-04
+```
+
+![](images/clipboard-1896062838.png)
+
+``` sql
+python -m pytest
+```
+
+![](images/clipboard-2189511241.png)
+
+**FIX 5: DEF-05 (redondeo)**
+
+``` sql
+git checkout -b fix/DEF-05
+```
+
+![](images/clipboard-3994905952.png)
+
+``` sql
+python -m pytest
+```
+
+![](images/clipboard-419181910.png)
+
+**Commit A: constantes, nombres, funciones extraídas y sin `flag`**
+
+Reemplazamos todo `EnviaYa\envios.py` por esto:
+
+``` python
+"""Calculo del costo de envio de EnviaYa."""
+from decimal import Decimal, ROUND_HALF_UP
+
+CONFIG = {
+    "L1": 3,
+    "L2": 10,
+    "RECARGO_RURAL": 0.25,
+    "RECARGO_NACIONAL": 0.40,
+    "DESC_VIP": 0.15,
+    "RECARGO_FINDE": 2000,  # pesos
+}
+
+PESO_MAX = 50
+TARIFA_TRAMO_1 = 6000
+TARIFA_TRAMO_2 = 9000
+TARIFA_KG_EXTRA = 800
+DESC_FRECUENTE = 0.05
+DESC_CUPON_ENVIO10 = 0.10
+COSTO_MINIMO = 5000
+MULTIPLO_REDONDEO = 100
+DIA_MIN = 1
+DIA_SABADO = 6
+DIA_MAX = 7
+
+
+def _validar(peso, zona, dia):
+    if peso <= 0 or peso > PESO_MAX:
+        raise ValueError("peso invalido")
+    if dia < DIA_MIN or dia > DIA_MAX:
+        raise ValueError("dia invalido")
+    if zona not in ("urbana", "rural", "nacional"):
+        raise ValueError("zona invalida")
+
+
+def _tarifa_base(peso):
+    if peso <= CONFIG["L1"]:
+        return TARIFA_TRAMO_1
+    if peso <= CONFIG["L2"]:
+        return TARIFA_TRAMO_2
+    return TARIFA_TRAMO_2 + (peso - CONFIG["L2"]) * TARIFA_KG_EXTRA
+
+
+def _redondear(valor):
+    """Redondea al multiplo de 100 mas cercano; los 50 suben."""
+    cociente = Decimal(str(valor)) / MULTIPLO_REDONDEO
+    return int(cociente.quantize(Decimal(1), rounding=ROUND_HALF_UP)) * MULTIPLO_REDONDEO
+
+
+def calc(peso, zona, cliente, dia, cupon=None):
+    """Costo del envio en pesos."""
+    _validar(peso, zona, dia)
+    total = _tarifa_base(peso)
+    if zona == "rural":
+        total = total * (1 + CONFIG["RECARGO_RURAL"])
+    elif zona == "nacional":
+        total = total * (1 + CONFIG["RECARGO_NACIONAL"])
+    if cliente == "frecuente":
+        total = total * (1 - DESC_FRECUENTE)
+    elif cliente == "vip":
+        total = total * (1 - CONFIG["DESC_VIP"])
+    if cupon == "ENVIO10":
+        total = total * (1 - DESC_CUPON_ENVIO10)
+    if dia >= DIA_SABADO:  # despues de descuentos (E impar)
+        total = total + CONFIG["RECARGO_FINDE"]
+    total = max(total, COSTO_MINIMO)
+    return _redondear(total)
+```
+
+![](images/clipboard-3148172380.png)
+
+**Diagrama UML de el modelo envios.py**
+
+![](images/clipboard-864530730.png)
+
+## 6.4 Corrección de defectos
+
+Los datos salen de tus commits y de las salidas de pytest que me pegaste.
+
+### Tabla de correcciones
+
+| Defecto | Requisito | Línea original (v1.0.0) | Corrección | Rama | Commit |
+|----|----|----|----|----|----|
+| DEF-01 | R2 | 20-25 (sin `else`) | `else: raise ValueError("zona invalida")` | `fix/DEF-01` | `79bdde9` |
+| DEF-02 | R2 | Sin validación de `d` | `if d < 1 or d > 7: raise ValueError("dia invalido")` | `fix/DEF-02` | `813fe6b` |
+| DEF-03 | R5 | 27 (`d > 6`) | `d >= 6`, para que el sábado cobre | `fix/DEF-03` | `70177c8` |
+| DEF-04 | R5 / regla E (impar) | 27-28 (recargo antes de los descuentos) | El recargo se mueve después del cupón y antes del mínimo | `fix/DEF-04` | `9e36a2c` |
+| DEF-05 | R8 | 40 (`int(t/100)*100` trunca) | `Decimal` con `ROUND_HALF_UP`, al múltiplo de 100 más cercano | `fix/DEF-05` | `33ebc92` |
+
+Cada rama se integró a `main` con `git merge --no-ff`. El conjunto quedó etiquetado como **v1.0.1**.
+
+### Commits de limpieza
+
+Dos commits no corrigen ningún defecto, y los clasifico como perfectivos:
+
+| Commit | Qué hizo |
+|----|----|
+| `8c35391` (`fix/limpieza-zonas`) | Quitó el `elif "nacional"` duplicado y los comentarios de depuración que dejaron los fixes 1 y 2. |
+| `b318193` (`fix/limpieza-def04`) | Quitó una línea en blanco sobrante tras el DEF-04. |
+
+### Qué pruebas puso en verde cada defecto
+
+Las 16 pruebas que fallaban en v1.0.0 se explican así. Calculé a mano cada caso, y los resultados del heredado coinciden con los de tu pytest.
+
+| Prueba (fallaba en v1.0.0) | Valor heredado | Esperado | Defecto(s) |
+|----|----|----|----|
+| `test_cp03_zona_invalida` | no lanza error | `ValueError` | DEF-01 |
+| `test_cp04_cp05_dia_invalido[8]` y `[0]` | no lanza error | `ValueError` | DEF-02 |
+| `test_cp14_sabado` | 9000 | 11000 | DEF-03 |
+| `test_tabla_decision[normal-ENVIO10-7]` | 9900 | 10100 | DEF-04 |
+| `test_tabla_decision[frecuente-None-3]`, `[frecuente-ENVIO10-3]`, `[vip-None-3]`, `[vip-ENVIO10-3]` | 8500, 7600, 7600, 6800 | 8600, 7700, 7700, 6900 | DEF-05 |
+| `test_cp12_rural` | 11200 | 11300 | DEF-05 |
+| `test_tabla_decision[frecuente-None-7]`, `[frecuente-ENVIO10-7]`, `[vip-None-7]`, `[vip-ENVIO10-7]` | 10400, 9400, 9300, 8400 | 10600, 9700, 9700, 8900 | DEF-04 y DEF-05 |
+| `test_ejemplo_2_nacional_frecuente_domingo` | 15900 | 16100 | DEF-04 y DEF-05 |
+| `test_ejemplo_1_rural_vip_sabado_cupon` | 5700 | 7700 | DEF-03, DEF-04 y DEF-05 |
+
+Un ejemplo de DEF-05: `calc(5, "rural", "normal", 3)` da 9000 × 1,25 = 11.250. El código heredado trunca a 11.200 y lo correcto es 11.300, porque el \$50 sube.
+
+Por eso varias pruebas solo pasan cuando están los tres defectos corregidos, y la suite completa quedó verde al terminar el DEF-05.
+
+## 6.5 Pruebas de regresión
+
+| Momento                 | Commit / versión   | Resultado            |
+|-------------------------|--------------------|----------------------|
+| Código heredado + suite | `a6c8716` (v1.0.0) | 16 failed, 15 passed |
+| DEF-01                  | `79bdde9`          | 15 failed, 16 passed |
+| DEF-02                  | `813fe6b`          | 13 failed, 18 passed |
+| DEF-03                  | `70177c8`          | 12 failed, 19 passed |
+| DEF-04                  | `9e36a2c`          | 10 failed, 21 passed |
+| DEF-05                  | `33ebc92` (v1.0.1) | 31 passed            |
+| Refactor Estrategia     | `27cf4d2` (v1.1.0) | 31 passed            |
+
+### Hallazgo de la regresión
+
+Al refactorizar, `test_cp29_flag_imprime` falló con `TypeError: calc() takes from 4 to 5 positional arguments but 6 were given`. La prueba llamaba a `calc` con `flag=True`, y ese argumento se eliminó a propósito (code smell Flag Argument). No fue un error del cálculo: cambió la interfaz.
+
+La prueba se reemplazó por `test_cp29_calc_no_imprime`, que verifica que `calc` devuelve 9000 y no imprime nada. Con eso la suite volvió a **31 passed**, sin cambiar ningún resultado esperado. El cambio quedó en su propio commit (`cb42d1b`).
+
+### Conclusión
+
+Los 5 defectos están corregidos, ya que las 16 pruebas que fallaban en v1.0.0 pasan. El refactor no introdujo regresiones: las 30 pruebas de cálculo siguen verdes, y la única modificada se debe al cambio de firma de `calc`.
+
+## 6.6 Comparación antes/después
+
+Ya tienes los datos reales. Esta es la tabla completa para pegar en el informe.
+
+### Tabla comparativa
+
+| Métrica                           | Antes (v1.0.0) | Después (v1.1.0)  | Cambio |
+|-----------------------------------|----------------|-------------------|--------|
+| Pruebas que pasan                 | 15/31          | 31/31             | +16    |
+| Complejidad ciclomática de `calc` | 15 (C)         | 2 (A)             | −13    |
+| Complejidad máxima de una función | 15 (`calc`)    | 6 (`_validar`, B) | −9     |
+| LOC                               | 40             | 115               | +75    |
+| SLOC                              | 37             | 76                | +39    |
+| LLOC                              | 31             | 74                | +43    |
+| Sentencias (pytest-cov)           | 29             | 60                | +31    |
+| Ramas (pytest-cov)                | 26             | 12                | −14    |
+| Cobertura                         | 100 %          | 100 %             | =      |
+| Nota pylint                       | 6,90/10        | 9,15/10           | +2,25  |
+| Avisos pylint                     | 9              | 5                 | −4     |
+| Funciones/métodos                 | 1              | 14                | +13    |
+
+El refactor aumentó el tamaño del código (de 40 a 115 líneas) porque el patrón Estrategia introduce clases (`Ajuste`, `SinAjuste`, `Recargo`, `Descuento`), constantes con nombre y funciones auxiliares. Ese aumento no es deuda técnica: es estructura que se paga una sola vez.
+
+Lo que mejoró es lo que más pesa en mantenimiento. La complejidad ciclomática de `calc` bajó de 15 a 2, porque los `if/elif` por zona, cliente y cupón pasaron a diccionarios de estrategias. Ninguna función supera hoy 6 (`_validar`), frente a los 15 de antes. Las ramas medidas por cobertura bajaron de 26 a 12. La cobertura se mantuvo en 100 % y las pruebas pasaron de 15/31 a 31/31, es decir, los cinco defectos quedaron corregidos y el refactor no introdujo regresiones.
+
+En la parte cualitativa, desaparecieron los code smells Magic Number, Flag Argument, Long Method, Switch Statements, Cryptic Naming, Dead Code, Duplicate Code y Nested Conditional. La nota de pylint subió de 6,90 a 9,15.
+
+Un beneficio concreto: agregar el cliente empresarial de la Parte 8 será una línea en `CLIENTES`, sin modificar `calc`.
