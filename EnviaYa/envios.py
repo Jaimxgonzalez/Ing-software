@@ -11,6 +11,11 @@ CONFIG = {
 def calc(p, z, c, d, cup=None, flag=False):
     if p <= 0 or p > 50:
         raise ValueError("peso invalido")
+
+    #fix2c
+    if d < 1 or d > 7:
+        raise ValueError("dia invalido")
+    
     if p <= CONFIG["L1"]:
         t = 6000
     elif p <= CONFIG["L2"]:
@@ -23,7 +28,7 @@ def calc(p, z, c, d, cup=None, flag=False):
         t = t + t * CONFIG["RECARGO_RURAL"]
     elif z == "nacional":
         t = t + t * CONFIG["RECARGO_NACIONAL"]
-   #New
+   #fix1
     elif z == "nacional":
         t = t + t * CONFIG["RECARGO_NACIONAL"]
     else:
