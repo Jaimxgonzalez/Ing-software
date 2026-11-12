@@ -1,46 +1,66 @@
-# envios.py
+"""Calculo del costo de envio de EnviaYa."""
 from decimal import Decimal, ROUND_HALF_UP
+
 CONFIG = {
     "L1": 3,
     "L2": 10,
     "RECARGO_RURAL": 0.25,
     "RECARGO_NACIONAL": 0.40,
     "DESC_VIP": 0.15,
-    "RECARGO_FINDE": 2000, #pesos
+    "RECARGO_FINDE": 2000,  # pesos
 }
 
-def calc(p, z, c, d, cup=None, flag=False):
-    if p <= 0 or p > 50:
+PESO_MAX = 50
+TARIFA_TRAMO_1 = 6000
+TARIFA_TRAMO_2 = 9000
+TARIFA_KG_EXTRA = 800
+DESC_FRECUENTE = 0.05
+DESC_CUPON_ENVIO10 = 0.10
+COSTO_MINIMO = 5000
+MULTIPLO_REDONDEO = 100
+DIA_MIN = 1
+DIA_SABADO = 6
+DIA_MAX = 7
+
+
+def _validar(peso, zona, dia):
+    if peso <= 0 or peso > PESO_MAX:
         raise ValueError("peso invalido")
-    if d < 1 or d > 7:
+    if dia < DIA_MIN or dia > DIA_MAX:
         raise ValueError("dia invalido")
-    if p <= CONFIG["L1"]:
-        t = 6000
-    elif p <= CONFIG["L2"]:
-        t = 9000
-    else:
-        t = 9000 + (p - CONFIG["L2"]) * 800
-    if z == "urbana":
-        t = t
-    elif z == "rural":
-        t = t + t * CONFIG["RECARGO_RURAL"]
-    elif z == "nacional":
-        t = t + t * CONFIG["RECARGO_NACIONAL"]
-    else:
+    if zona not in ("urbana", "rural", "nacional"):
         raise ValueError("zona invalida")
-    
-    if c == "frecuente":
-        t = t - t * 0.05
-    if c == "vip":
-        t = t - t * CONFIG["DESC_VIP"]
-    if cup != None:
-        if cup == "ENVIO10":
-            t = t - t * 0.10
-            # fin de semana
-    if d >= 6:
-        t = t + CONFIG["RECARGO_FINDE"]
-    if t < 5000:
-        t = 5000
-    if flag:
-        print("costo:", t)
-    return int((Decimal(str(t)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)) * 100
+
+
+def _tarifa_base(peso):
+    if peso <= CONFIG["L1"]:
+        return TARIFA_TRAMO_1
+    if peso <= CONFIG["L2"]:
+        return TARIFA_TRAMO_2
+    return TARIFA_TRAMO_2 + (peso - CONFIG["L2"]) * TARIFA_KG_EXTRA
+
+
+def _redondear(valor):
+    """Redondea al multiplo de 100 mas cercano; los 50 suben."""
+    cociente = Decimal(str(valor)) / MULTIPLO_REDONDEO
+    return int(cociente.quantize(Decimal(1), rounding=ROUND_HALF_UP)) * MULTIPLO_REDONDEO
+
+
+def calc(peso, zona, cliente, dia, cupon=None):
+    """Costo del envio en pesos."""
+    _validar(peso, zona, dia)
+    total = _tarifa_base(peso)
+    if zona == "rural":
+        total = total * (1 + CONFIG["RECARGO_RURAL"])
+    elif zona == "nacional":
+        total = total * (1 + CONFIG["RECARGO_NACIONAL"])
+    if cliente == "frecuente":
+        total = total * (1 - DESC_FRECUENTE)
+    elif cliente == "vip":
+        total = total * (1 - CONFIG["DESC_VIP"])
+    if cupon == "ENVIO10":
+        total = total * (1 - DESC_CUPON_ENVIO10)
+    if dia >= DIA_SABADO:  # despues de descuentos (E impar)
+        total = total + CONFIG["RECARGO_FINDE"]
+    total = max(total, COSTO_MINIMO)
+    return _redondear(total)
