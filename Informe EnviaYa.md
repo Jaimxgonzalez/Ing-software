@@ -1104,3 +1104,115 @@ Refactorización de `calc` con el patrón Estrategia. Es una versión **MAJOR** 
 ### Notas de la versión v1.0.1
 
 Corrige los defectos DEF-01 a DEF-05. La firma de `calc` no cambia. Pasan las 31 pruebas.
+
+## 7.5 Historial de Git
+
+Salida de `git log --oneline --graph --all --decorate` al finalizar la Parte 7:
+
+```         
+PS C:\Users\gonza\OneDrive\Documentos\ING SOFTWARE> git --no-pager log --oneline --graph --all --decorate > gitlog_final.txt
+PS C:\Users\gonza\OneDrive\Documentos\ING SOFTWARE> type gitlog_final.txt
+* 243c699 (HEAD -> main, origin/main, origin/HEAD) docs: parte 7.4 changelog y notas de version
+* 220ecef docs: CHANGELOG en formato Keep a Changelog
+* b415306 docs: CHANGELOG en formato Keep a Changelog
+* e491717 docs: parte 7.1 y 7.2 ramas e integracion
+* f0e85f0 chore: ampliar gitignore
+* 7749b52 chore: quitar archivos generados del repositorio
+*   856f1ca merge: docs/parte6 (parte 6)
+|\
+| * b10856f (origin/docs/parte6, docs/parte6) Parte 6 - mantenimiento y refactorizacion
+| * d34e645 Parte 6 - mantenimiento y refactorizacion
+* |   4b9f668 merge: docs/parte3 (partes 3 a 5)
+|\ \
+| |/
+|/|
+* |   27cf4d2 (tag: v2.0.0) merge: refactor/estrategia
+|\ \
+| * | edf0229 (origin/refactor/estrategia, refactor/estrategia) refactor: patron Estrategia para zonas, clientes y cupones
+| * | cb42d1b test: cp29 ahora verifica que calc no imprime (flag eliminado)
+| * | 61ce665 refactor: constantes con nombre, nombres claros, funciones extraidas y sin flag
+|/ /
+* |   4635c39 (tag: v1.0.1) merge: fix/DEF-05
+|\ \
+| * | 33ebc92 (origin/fix/DEF-05, fix/DEF-05) fix(DEF-05): redondeo al multiplo de 100 mas cercano con Decimal (R8)
+|/ /
+* |   5603822 merge: fix/limpieza-def04
+|\ \
+| * | b318193 (origin/fix/limpieza-def04, fix/limpieza-def04) chore: alinear comentario del recargo de fin de semana tras DEF-04
+|/ /
+* |   fbb1254 merge: fix/DEF-04
+|\ \
+| * | 9e36a2c (origin/fix/DEF-04, fix/DEF-04) fix(DEF-04): recargo de fin de semana despues de los descuentos (R5)
+|/ /
+* |   a3af526 merge: fix/DEF-03
+|\ \
+| * | 70177c8 (origin/fix/DEF-03, fix/DEF-03) fix(DEF-03): el sabado (6) tambien cobra recargo de fin de semana (R5)
+|/ /
+* |   18b14f9 merge: fix/limpieza-zonas
+|\ \
+| * | 8c35391 (origin/fix/limpieza-zonas, fix/limpieza-zonas) chore: quitar elif duplicado y comentarios de depuracion de fixes 1 y 2
+|/ /
+* |   a1c355c merge: fix/DEF-02
+|\ \
+| * | 813fe6b (origin/fix/DEF-02, fix/DEF-02) fix(DEF-02): validar que el dia este entre 1 y 7 (R2)
+|/ /
+* |   1841cb8 merge: fix/DEF-01
+|\ \
+| * | 79bdde9 (origin/fix/DEF-01, fix/DEF-01) fix(DEF-01): lanzar ValueError ante zona invalida (R2)
+|/ /
+* |   a6c8716 merge: test/suite
+|\ \
+| * | be4ddf2 (origin/test/suite, test/suite) chore: gitignore para archivos generados
+| * | cfdb320 test: suite pytest con 31 pruebas ejecutada contra el heredado
+|/ /
+| | *   659f747 (refs/stash) On docs/parte3: informe 6.1 y 6.2 en progreso
+| |/|\
+| | | * d4fc8a4 untracked files on docs/parte3: 310c8c6 Parte 5 ┬À Automatizaci├│n, ejecuci├│n y defectos
+| | * cd57221 index on docs/parte3: 310c8c6 Parte 5 ┬À Automatizaci├│n, ejecuci├│n y defectos
+| |/
+| * 310c8c6 (origin/docs/parte3, docs/parte3) Parte 5 ┬À Automatizaci├│n, ejecuci├│n y defectos
+| * e3be2b4 Parte 5 ┬À Automatizaci├│n, ejecuci├│n y defectos
+| * 9e2b9c2 Parte 4 ┬À Caja blanca
+| * 9958cba Parte 3 ┬À Dise├▒o de casos de caja negra
+|/
+* 3da2f63 parte 2 plan de pruebas
+* 25692b3 parte 1 requisitos, historias y trazabilidad
+* a0c3059 (tag: v1.0.0)  Encabezado del informe con parametros EnviaYa
+| * c50c8fc (origin/respaldo-local, respaldo-local) Encabezado del informe con par├ímetros
+| * 4baf507  Encabezado del informe con par├ímetros
+| * caca5bf chore: codigo heredado con CONFIG personalizado
+|/
+| * 709c4ae (origin/respaldo-github, respaldo-github) Encabezado del informe con par├ímetros
+| * 861768d  Encabezado del informe con par├ímetros
+| *   660661a codigo heredado con CONFIG personalizado
+| |\
+| |/
+|/|
+* | bf06536 Initial commit
+ /
+* 3ae841b chore: codigo heredado con CONFIG personalizado
+PS C:\Users\gonza\OneDrive\Documentos\ING SOFTWARE>
+```
+
+**Qué se observa en el grafo:**
+
+- Cada rama de trabajo (`test/suite`, `fix/DEF-01` a `fix/DEF-05`, `refactor/estrategia`) sale de `main` y vuelve con un commit de merge, porque se integró con `--no-ff`.
+- Las etiquetas `v1.0.0`, `v1.0.1` y `v2.0.0` marcan la línea base, las correcciones y la refactorización.
+- Las ramas `docs/parte3` y `docs/parte6` integran el informe a `main` (`4b9f668` y `856f1ca`).
+- Las ramas `respaldo-local` y `respaldo-github` son copias de seguridad del encabezado del informe y no hacen parte de la entrega.
+
+## 7.6 Commits repartidos a lo largo del día
+
+El trabajo se hizo de forma incremental el 11 de noviembre de 2026. Los commits van desde las 15:09 hasta las 20:12, y después las integraciones y la documentación de la Parte 7.
+
+| Franja | Trabajo | Commits (ejemplos) |
+|------------------------|------------------------|------------------------|
+| 15:09 a 15:50 | Repositorio y código heredado | `bf06536`, `3ae841b`, `660661a` |
+| 16:15 a 17:14 | Encabezado, Partes 1 y 2 | `a0c3059`, `25692b3`, `3da2f63` |
+| 17:45 a 18:28 | Partes 3, 4 y 5 | `9958cba`, `9e2b9c2`, `310c8c6` |
+| 19:02 a 19:03 | Suite de pruebas | `cfdb320`, `be4ddf2` |
+| 19:07 a 19:36 | Defectos DEF-01 a DEF-05 | `79bdde9` a `33ebc92` |
+| 19:40 a 19:47 | Refactorización con Estrategia | `61ce665`, `cb42d1b`, `edf0229` |
+| 20:10 a 20:12 | Informe Parte 6 | `d34e645`, `b10856f` |
+
+Para verificarlo: `git log --all --format="%h %ad %s" --date=format:"%H:%M"`.
