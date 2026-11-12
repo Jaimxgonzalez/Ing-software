@@ -5,7 +5,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [Sin publicar]
+## [2.1.0] - 2026-11-11
 
+### Añadido
+- Nuevo tipo de cliente `empresarial` con 12 % de descuento, combinable con cupón.
+- El cliente empresarial no paga recargo de zona cuando el peso es mayor que L2 (10 kg).
+- 10 casos de prueba nuevos (CE01 a CE10).
 ## [2.0.0] - 2026-11-11
 
 ### Cambiado
@@ -34,7 +39,7 @@ y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 ### Añadido
 - Versión heredada de `calc` con mi configuración (L1=3, L2=10, rural 25 %, nacional 40 %, VIP 15 %, fin de semana $2.000), sin modificar. Contiene los defectos DEF-01 a DEF-05.
 
-[Sin publicar]: https://github.com/Jaimxgonzalez/Ing-software/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/Jaimxgonzalez/Ing-software/compare/v1.0.1...v2.0.0
+[Sin publicar]: https://github.com/Jaimxgonzalez/Ing-software/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Jaimxgonzalez/Ing-software/compare/v2.0.0...v2.1.0
 [1.0.1]: https://github.com/Jaimxgonzalez/Ing-software/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Jaimxgonzalez/Ing-software/releases/tag/v1.0.0
