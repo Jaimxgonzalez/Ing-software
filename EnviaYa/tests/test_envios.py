@@ -88,9 +88,9 @@ def test_tabla_decision(cliente, cupon, dia, esperado):
 
 
 # ---------- CP29: caja blanca (flag) ----------
-def test_cp29_flag_imprime(capsys):
-    assert calc(5, "urbana", "normal", 3, None, True) == 9000
-    assert "costo" in capsys.readouterr().out
+def test_cp29_calc_no_imprime(capsys):
+    assert calc(5, "urbana", "normal", 3) == 9000
+    assert capsys.readouterr().out == ""
 
 
 # ---------- Ejemplos de verificación ----------
