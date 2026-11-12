@@ -1071,3 +1071,36 @@ git merge --no-ff fix/DEF-0X -m "merge: fix/DEF-0X"
 ```
 
 Las ramas `respaldo-local` y `respaldo-github` son copias de seguridad del encabezado del informe y no forman parte del flujo de entrega.
+
+## 7.3 Versionado semántico
+
+Se usa el esquema MAJOR.MINOR.PATCH:
+
+| Versión | Commit | Qué contiene | Tipo | Justificación |
+|---------------|---------------|---------------|---------------|---------------|
+| v1.0.0 | `a0c3059` | Código heredado, sin modificar | Línea base | Punto de partida con los 5 defectos |
+| v1.0.1 | `4635c39` | Correcciones DEF-01 a DEF-05 | PATCH | Corrigen defectos y la firma de `calc` no cambia |
+| v2.0.0 | `27cf4d2` | Refactor con Estrategia, sin `flag` | MAJOR | Se elimina un parámetro de la interfaz pública |
+| v2.1.0 | (Parte 8) | Cliente empresarial | MINOR | Funcionalidad nueva compatible |
+
+**¿Quitar `flag` hace la versión MAJOR? Sí.** Antes se podía llamar `calc(5, "urbana", "normal", 3, None, True)`. Ahora esa llamada lanza `TypeError`. Es un cambio incompatible hacia atrás, y el versionado semántico reserva el MAJOR para eso, aunque los resultados numéricos no cambien.
+
+**¿Por qué las correcciones son PATCH aunque cambian resultados?** Porque el comportamiento anterior contradecía la especificación; se corrige un defecto, no se agrega ni se quita funcionalidad, y la firma queda igual.
+
+**Corrección de etiqueta:** la refactorización se había etiquetado `v1.1.0` (MINOR). Al analizar que eliminar `flag` es incompatible, se movió a `v2.0.0` (`git tag -a v2.0.0 ... 27cf4d2` y `git tag -d v1.1.0`).
+
+## 7.4 CHANGELOG y notas de la versión
+
+El archivo `CHANGELOG.md` está en la raíz del repositorio y sigue el formato Keep a Changelog, con las secciones `Añadido`, `Cambiado`, `Corregido` y `Eliminado` por versión (1.0.0, 1.0.1 y 2.0.0).
+
+(Pega aquí el contenido de `CHANGELOG.md` o una captura.)
+
+### Notas de la versión v2.0.0
+
+Refactorización de `calc` con el patrón Estrategia. Es una versión **MAJOR** porque se eliminó el parámetro `flag`: el código que lo pase fallará con `TypeError`. Los resultados numéricos no cambian respecto de v1.0.1 y las 31 pruebas pasan.
+
+**Cómo migrar:** reemplazar `calc(..., flag=True)` por `print(calc(...))`.
+
+### Notas de la versión v1.0.1
+
+Corrige los defectos DEF-01 a DEF-05. La firma de `calc` no cambia. Pasan las 31 pruebas.
