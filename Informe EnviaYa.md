@@ -997,3 +997,77 @@ Lo que mejoró es lo que más pesa en mantenimiento. La complejidad ciclomática
 En la parte cualitativa, desaparecieron los code smells Magic Number, Flag Argument, Long Method, Switch Statements, Cryptic Naming, Dead Code, Duplicate Code y Nested Conditional. La nota de pylint subió de 6,90 a 9,15.
 
 Un beneficio concreto: agregar el cliente empresarial de la Parte 8 será una línea en `CLIENTES`, sin modificar `calc`.
+
+# **Parte 7 · Gestión de configuración**
+
+## 7.1 Etiqueta v1.0.0 en el código heredado
+
+El código heredado `envios.py`, con mi CONFIG (L1 = 3, L2 = 10, rural 25 %, nacional 40 %, VIP 15 %, fin de semana \$2.000) y sin ninguna otra modificación, quedó guardado en el commit `a0c3059` y etiquetado como `v1.0.0`.
+
+Comando usado:
+
+```         
+git tag v1.0.0 a0c3059
+```
+
+Verificación con `git show v1.0.0 --stat`:
+
+```         
+commit a0c3059742252bd9d0c8729b633421e720e481df (tag: v1.0.0)
+Author: Jaime Rafael Gonzalez Ballesta
+Date:   Wed Nov 11 16:49:04 2026 -0500
+
+    Encabezado del informe con parametros EnviaYa
+
+ EnviaYa/envios.py  | 40 ++++++++++++++++++++++++++++++++++++++++
+ Informe EnviaYa.md | 68 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ README.md          |  1 -
+ 3 files changed, 108 insertions(+), 1 deletion(-)
+```
+
+La etiqueta también está publicada en GitHub (`git push origin v1.0.0`).
+
+Esta versión es la línea base del proyecto: contra ella se ejecutaron las 31 pruebas de la suite, con 15 que pasan y 16 que fallan, y con ella se compara el antes y el después de las correcciones y la refactorización.
+
+## 7.2 Ramas e integración
+
+Se creó una rama por cada defecto, una para la refactorización y otra para la suite de pruebas. Todas se integraron a `main` con `git merge --no-ff`, para que cada rama quede visible en el grafo. Después de cada integración se ejecutó pytest.
+
+| Rama | Propósito | Commits de la rama | Merge a `main` |
+|------------------|------------------|------------------|------------------|
+| `test/suite` | Suite pytest de 31 pruebas y `.gitignore` | `cfdb320`, `be4ddf2` | `a6c8716` |
+| `fix/DEF-01` | Zona inválida lanza `ValueError` (R2) | `79bdde9` | `1841cb8` |
+| `fix/DEF-02` | Día fuera de 1 a 7 lanza `ValueError` (R2) | `813fe6b` | `a1c355c` |
+| `fix/limpieza-zonas` | Limpieza de un `elif` duplicado y de comentarios de depuración | `8c35391` | `18b14f9` |
+| `fix/DEF-03` | El sábado (día 6) cobra recargo (R5) | `70177c8` | `a3af526` |
+| `fix/DEF-04` | Recargo de fin de semana después de los descuentos (R5) | `9e36a2c` | `fbb1254` |
+| `fix/limpieza-def04` | Alinea el comentario del recargo de fin de semana | `b318193` | `5603822` |
+| `fix/DEF-05` | Redondeo al múltiplo de \$100 más cercano con `Decimal` (R8) | `33ebc92` | `4635c39` |
+| `refactor/estrategia` | Constantes, funciones extraídas, sin `flag` y patrón Estrategia | `61ce665`, `cb42d1b`, `edf0229` | `27cf4d2` |
+| `docs/parte3` | Informe: Partes 3 a 5 | `9958cba`, `9e2b9c2`, `e3be2b4`, `310c8c6` | Pendiente |
+| `docs/parte6` | Informe: Parte 6 | `d34e645`, `b10856f` | Pendiente |
+
+### Evolución de las pruebas por rama
+
+| Momento                 | Commit    | Resultado de pytest |
+|-------------------------|-----------|---------------------|
+| Código heredado y suite | `a6c8716` | 16 fallan, 15 pasan |
+| Tras DEF-01             | `1841cb8` | 15 fallan, 16 pasan |
+| Tras DEF-02             | `a1c355c` | 13 fallan, 18 pasan |
+| Tras DEF-03             | `a3af526` | 12 fallan, 19 pasan |
+| Tras DEF-04             | `fbb1254` | 10 fallan, 21 pasan |
+| Tras DEF-05             | `4635c39` | 31 pasan            |
+| Tras la refactorización | `27cf4d2` | 31 pasan            |
+
+### Flujo seguido en cada rama
+
+```         
+git checkout main
+git checkout -b fix/DEF-0X
+(corregir el código y ejecutar pytest)
+git commit -m "fix(DEF-0X): ..."
+git checkout main
+git merge --no-ff fix/DEF-0X -m "merge: fix/DEF-0X"
+```
+
+Las ramas `respaldo-local` y `respaldo-github` son copias de seguridad del encabezado del informe y no forman parte del flujo de entrega.
