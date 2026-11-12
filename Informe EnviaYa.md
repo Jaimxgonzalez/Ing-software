@@ -897,3 +897,103 @@ def calc(peso, zona, cliente, dia, cupon=None):
 ```
 
 ![](images/clipboard-3148172380.png)
+
+**Diagrama UML de el modelo envios.py**
+
+![](images/clipboard-864530730.png)
+
+## 6.4 Corrección de defectos
+
+Los datos salen de tus commits y de las salidas de pytest que me pegaste.
+
+### Tabla de correcciones
+
+| Defecto | Requisito | Línea original (v1.0.0) | Corrección | Rama | Commit |
+|----|----|----|----|----|----|
+| DEF-01 | R2 | 20-25 (sin `else`) | `else: raise ValueError("zona invalida")` | `fix/DEF-01` | `79bdde9` |
+| DEF-02 | R2 | Sin validación de `d` | `if d < 1 or d > 7: raise ValueError("dia invalido")` | `fix/DEF-02` | `813fe6b` |
+| DEF-03 | R5 | 27 (`d > 6`) | `d >= 6`, para que el sábado cobre | `fix/DEF-03` | `70177c8` |
+| DEF-04 | R5 / regla E (impar) | 27-28 (recargo antes de los descuentos) | El recargo se mueve después del cupón y antes del mínimo | `fix/DEF-04` | `9e36a2c` |
+| DEF-05 | R8 | 40 (`int(t/100)*100` trunca) | `Decimal` con `ROUND_HALF_UP`, al múltiplo de 100 más cercano | `fix/DEF-05` | `33ebc92` |
+
+Cada rama se integró a `main` con `git merge --no-ff`. El conjunto quedó etiquetado como **v1.0.1**.
+
+### Commits de limpieza
+
+Dos commits no corrigen ningún defecto, y los clasifico como perfectivos:
+
+| Commit | Qué hizo |
+|----|----|
+| `8c35391` (`fix/limpieza-zonas`) | Quitó el `elif "nacional"` duplicado y los comentarios de depuración que dejaron los fixes 1 y 2. |
+| `b318193` (`fix/limpieza-def04`) | Quitó una línea en blanco sobrante tras el DEF-04. |
+
+### Qué pruebas puso en verde cada defecto
+
+Las 16 pruebas que fallaban en v1.0.0 se explican así. Calculé a mano cada caso, y los resultados del heredado coinciden con los de tu pytest.
+
+| Prueba (fallaba en v1.0.0) | Valor heredado | Esperado | Defecto(s) |
+|----|----|----|----|
+| `test_cp03_zona_invalida` | no lanza error | `ValueError` | DEF-01 |
+| `test_cp04_cp05_dia_invalido[8]` y `[0]` | no lanza error | `ValueError` | DEF-02 |
+| `test_cp14_sabado` | 9000 | 11000 | DEF-03 |
+| `test_tabla_decision[normal-ENVIO10-7]` | 9900 | 10100 | DEF-04 |
+| `test_tabla_decision[frecuente-None-3]`, `[frecuente-ENVIO10-3]`, `[vip-None-3]`, `[vip-ENVIO10-3]` | 8500, 7600, 7600, 6800 | 8600, 7700, 7700, 6900 | DEF-05 |
+| `test_cp12_rural` | 11200 | 11300 | DEF-05 |
+| `test_tabla_decision[frecuente-None-7]`, `[frecuente-ENVIO10-7]`, `[vip-None-7]`, `[vip-ENVIO10-7]` | 10400, 9400, 9300, 8400 | 10600, 9700, 9700, 8900 | DEF-04 y DEF-05 |
+| `test_ejemplo_2_nacional_frecuente_domingo` | 15900 | 16100 | DEF-04 y DEF-05 |
+| `test_ejemplo_1_rural_vip_sabado_cupon` | 5700 | 7700 | DEF-03, DEF-04 y DEF-05 |
+
+Un ejemplo de DEF-05: `calc(5, "rural", "normal", 3)` da 9000 × 1,25 = 11.250. El código heredado trunca a 11.200 y lo correcto es 11.300, porque el \$50 sube.
+
+Por eso varias pruebas solo pasan cuando están los tres defectos corregidos, y la suite completa quedó verde al terminar el DEF-05.
+
+## 6.5 Pruebas de regresión
+
+| Momento                 | Commit / versión   | Resultado            |
+|-------------------------|--------------------|----------------------|
+| Código heredado + suite | `a6c8716` (v1.0.0) | 16 failed, 15 passed |
+| DEF-01                  | `79bdde9`          | 15 failed, 16 passed |
+| DEF-02                  | `813fe6b`          | 13 failed, 18 passed |
+| DEF-03                  | `70177c8`          | 12 failed, 19 passed |
+| DEF-04                  | `9e36a2c`          | 10 failed, 21 passed |
+| DEF-05                  | `33ebc92` (v1.0.1) | 31 passed            |
+| Refactor Estrategia     | `27cf4d2` (v1.1.0) | 31 passed            |
+
+### Hallazgo de la regresión
+
+Al refactorizar, `test_cp29_flag_imprime` falló con `TypeError: calc() takes from 4 to 5 positional arguments but 6 were given`. La prueba llamaba a `calc` con `flag=True`, y ese argumento se eliminó a propósito (code smell Flag Argument). No fue un error del cálculo: cambió la interfaz.
+
+La prueba se reemplazó por `test_cp29_calc_no_imprime`, que verifica que `calc` devuelve 9000 y no imprime nada. Con eso la suite volvió a **31 passed**, sin cambiar ningún resultado esperado. El cambio quedó en su propio commit (`cb42d1b`).
+
+### Conclusión
+
+Los 5 defectos están corregidos, ya que las 16 pruebas que fallaban en v1.0.0 pasan. El refactor no introdujo regresiones: las 30 pruebas de cálculo siguen verdes, y la única modificada se debe al cambio de firma de `calc`.
+
+## 6.6 Comparación antes/después
+
+Ya tienes los datos reales. Esta es la tabla completa para pegar en el informe.
+
+### Tabla comparativa
+
+| Métrica                           | Antes (v1.0.0) | Después (v1.1.0)  | Cambio |
+|-----------------------------------|----------------|-------------------|--------|
+| Pruebas que pasan                 | 15/31          | 31/31             | +16    |
+| Complejidad ciclomática de `calc` | 15 (C)         | 2 (A)             | −13    |
+| Complejidad máxima de una función | 15 (`calc`)    | 6 (`_validar`, B) | −9     |
+| LOC                               | 40             | 115               | +75    |
+| SLOC                              | 37             | 76                | +39    |
+| LLOC                              | 31             | 74                | +43    |
+| Sentencias (pytest-cov)           | 29             | 60                | +31    |
+| Ramas (pytest-cov)                | 26             | 12                | −14    |
+| Cobertura                         | 100 %          | 100 %             | =      |
+| Nota pylint                       | 6,90/10        | 9,15/10           | +2,25  |
+| Avisos pylint                     | 9              | 5                 | −4     |
+| Funciones/métodos                 | 1              | 14                | +13    |
+
+El refactor aumentó el tamaño del código (de 40 a 115 líneas) porque el patrón Estrategia introduce clases (`Ajuste`, `SinAjuste`, `Recargo`, `Descuento`), constantes con nombre y funciones auxiliares. Ese aumento no es deuda técnica: es estructura que se paga una sola vez.
+
+Lo que mejoró es lo que más pesa en mantenimiento. La complejidad ciclomática de `calc` bajó de 15 a 2, porque los `if/elif` por zona, cliente y cupón pasaron a diccionarios de estrategias. Ninguna función supera hoy 6 (`_validar`), frente a los 15 de antes. Las ramas medidas por cobertura bajaron de 26 a 12. La cobertura se mantuvo en 100 % y las pruebas pasaron de 15/31 a 31/31, es decir, los cinco defectos quedaron corregidos y el refactor no introdujo regresiones.
+
+En la parte cualitativa, desaparecieron los code smells Magic Number, Flag Argument, Long Method, Switch Statements, Cryptic Naming, Dead Code, Duplicate Code y Nested Conditional. La nota de pylint subió de 6,90 a 9,15.
+
+Un beneficio concreto: agregar el cliente empresarial de la Parte 8 será una línea en `CLIENTES`, sin modificar `calc`.
