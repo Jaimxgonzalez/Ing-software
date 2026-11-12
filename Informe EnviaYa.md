@@ -1216,3 +1216,75 @@ El trabajo se hizo de forma incremental el 11 de noviembre de 2026. Los commits 
 | 20:10 a 20:12 | Informe Parte 6 | `d34e645`, `b10856f` |
 
 Para verificarlo: `git log --all --format="%h %ad %s" --date=format:"%H:%M"`.
+
+## 
+
+# Parte 8 · Solicitud de cambio y análisis de impacto
+
+**Solicitud asignada:** (A + F) mod 3 = (4 + 0) mod 3 = 1. Nuevo tipo de cliente empresarial con 12 % de descuento; si el peso es mayor que L2 (10 kg), no se cobra el recargo de zona.
+
+**Supuesto:** la excepción del recargo de zona aplica solo al cliente empresarial, porque el enunciado la incluye dentro de esa solicitud.
+
+![](images/clipboard-2957712204.png)
+
+## 8.1 Análisis de impacto
+
+El análisis parte de la matriz de trazabilidad (requisito → historia → casos de prueba): se busca qué requisitos toca el cambio y, siguiendo la matriz, qué historias, casos y partes del código dependen de ellos.
+
+### Requisitos
+
+| Requisito | ¿Afectado? | Cómo |
+|------------------------|------------------------|------------------------|
+| R1 (peso válido) | No cambia | Se re-ejecuta en la regresión |
+| R2 (zona y día válidos) | No cambia | Una zona inválida sigue lanzando error aunque el cliente sea empresarial |
+| R3 (tarifa base) | No cambia | Solo se reutiliza la condición peso \> L2 |
+| R4 (recargo de zona) | **Modificado** | Excepción: el cliente empresarial con peso \> 10 kg no paga recargo |
+| R5 (fin de semana) | No cambia | Se re-ejecuta en la regresión |
+| R6 (descuentos) | **Modificado** | Nuevo cliente `empresarial` con 12 %, combinable con el cupón |
+| R7 (cupón inexistente) | No cambia | Se re-ejecuta en la regresión |
+| R8 (mínimo y redondeo) | No cambia | Se re-ejecuta; CE10 verifica el mínimo con el nuevo cliente |
+
+### Historias de usuario
+
+| Historia | ¿Afectada? | Cómo |
+|------------------------|------------------------|------------------------|
+| HU-1 (validación) | No | Las validaciones no cambian |
+| HU-2 (tarifa por peso, zona y día) | **Modificada** | R4 tiene una excepción |
+| HU-3 (descuentos, mínimo y redondeo) | **Modificada** | R6 tiene un cliente nuevo |
+| HU-4 (cliente empresarial) | **Nueva** | Cubre el cambio solicitado |
+
+### Casos de prueba
+
+| Casos | Acción |
+|------------------------------------|------------------------------------|
+| CP12, CP13 (zona) | Se re-ejecutan: cubren R4 |
+| CP17 a CP28 (tabla de decisión) | Se re-ejecutan: cubren R6 |
+| Los demás casos (CP01 a CP11, CP14 a CP16, CP29) | Se re-ejecutan como regresión |
+| CE01 a CE10 | **Nuevos**: cubren el cliente empresarial y la excepción del recargo |
+| Partición de cliente (3.1) | Nueva clase válida: `empresarial` |
+| Tabla de decisión (3.3) | Se amplía con la fila `empresarial` |
+
+### Código
+
+| Parte del código | Impacto |
+|------------------------------------|------------------------------------|
+| Constantes (`CLIENTE_EMPRESARIAL`, `DESC_EMPRESARIAL`) | Nuevas |
+| Diccionario `CLIENTES` | Una línea nueva con `Descuento(DESC_EMPRESARIAL)` |
+| `_cobra_recargo_zona` | Función nueva que decide si se cobra el recargo de zona |
+| `calc` | Modificada: aplica el recargo de zona solo si `_cobra_recargo_zona` lo permite |
+| `_validar`, `_tarifa_base`, `_redondear` | Sin cambios |
+| Clases `Ajuste`, `Recargo`, `Descuento` | Sin cambios: el patrón Estrategia absorbe el cliente nuevo |
+
+### Matriz de trazabilidad actualizada
+
+| Requisito | Historia   | Casos de prueba               |
+|-----------|------------|-------------------------------|
+| R4        | HU-2, HU-4 | CP12, CP13, CE02 a CE07, CE09 |
+| R6        | HU-3, HU-4 | CP17 a CP28, CE01 a CE10      |
+| R8        | HU-3       | CP16, CP21 a CP28, CE10       |
+
+![](images/clipboard-1931048825.png)
+
+![](images/clipboard-1433508976.png)
+
+![](images/clipboard-3706395699.png)
