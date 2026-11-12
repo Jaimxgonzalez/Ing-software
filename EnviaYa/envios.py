@@ -38,7 +38,6 @@ def calc(p, z, c, d, cup=None, flag=False):
             # fin de semana
     if d >= 6:
         t = t + CONFIG["RECARGO_FINDE"]
-
     if t < 5000:
         t = 5000
     if flag:
